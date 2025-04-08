@@ -112,11 +112,6 @@ impl std::fmt::Display for CrashLog {
         );
         res = writeln!(f);
 
-        let mut res: std::fmt::Result = writeln!(f, "REGISTERS");
-        res = writeln!(f, "{:-<20}", "");
-
-        // PRINT REGISTERS VALUES
-
         res = writeln!(f, "{}", self.crash_info);
 
         res

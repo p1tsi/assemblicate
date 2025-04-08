@@ -1,6 +1,6 @@
 use r2pipe::R2Pipe;
-use std::path::Path;
 use std::collections::HashMap;
+use std::path::Path;
 
 // Struct that maintains a cache of R2Pipe instances associated with binary file names
 pub struct R2PipeCache {
@@ -29,7 +29,7 @@ impl R2PipeCache {
         // Open R2Pipe only if it's not already in the cache
         self.map.entry(binary_name.clone()).or_insert_with(|| {
             let mut r2 = open_pipe!(Some(image_path)).expect("Failed to open r2pipe");
-            r2.cmd("aaa").unwrap();
+            r2.cmd("aa").unwrap();
 
             r2
         })

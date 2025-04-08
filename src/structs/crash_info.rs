@@ -1,20 +1,10 @@
+use r2pipe::R2Pipe;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 
-use lazy_static::lazy_static;
-use regex::Regex;
-
+use super::constants::*;
 use super::r2pipe_cache::R2PipeCache;
-
-use r2pipe::R2Pipe;
-
-lazy_static! {
-    static ref OBJC_METHOD: Regex = Regex::new(
-        r#"[-|+]\[(.*) (.*)][\._]*(block_invoke)*[\._]*([0-9]*)[\._]*(cold)*[\._]*([0-9]*)"#
-    )
-    .unwrap();
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,15 +58,15 @@ pub struct Frame {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThreadState {
-    flavor: String,
-    lr: Register,
-    cpsr: Register,
-    fp: Register,
-    sp: Register,
-    esr: Esr,
-    pc: Register,
-    far: Register,
-    x: Vec<Register>,
+    pub flavor: String,
+    pub lr: Register,
+    pub cpsr: Register,
+    pub fp: Register,
+    pub sp: Register,
+    pub esr: Esr,
+    pub pc: Register,
+    pub far: Register,
+    pub x: Vec<Register>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,6 +75,8 @@ pub struct Register {
     value: u64,
     symbol_location: Option<u64>,
     symbol: Option<String>,
+    #[serde(alias = "objc-selector")]
+    objc_selector: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -287,7 +279,7 @@ impl CrashInfo {
 
     fn analyze_faulting_thread(&self) -> String {
         let mut r2_cache: R2PipeCache = R2PipeCache::new();
-        let filtered_dylibs = HashSet::from(["UIKitCore", "libdispatch.dylib"]);
+        let filtered_dylibs = HashSet::from(["UIKitCore", "libdispatch.dylib", "CoreFoundation"]);
 
         let mut res: String = String::from("STACK TRACE\n");
         res.push_str(format!("{:-<20}\n", "").as_str());
@@ -305,6 +297,13 @@ impl CrashInfo {
                         let image_name = image.name.as_ref();
                         if image_name.is_none() {
                             println!("Image has no name");
+
+                            res.push_str(
+                                format!("{:<10} {:<25} 0x{:<25X}\n", i, "???", frame.image_offset)
+                                    .as_str(),
+                            );
+                            res.push_str("\n");
+
                             return;
                         }
 
@@ -327,9 +326,17 @@ impl CrashInfo {
                         // Check if is main exe/main app
                         println!("IMAGE: {}", image_name.unwrap());
                         if image_name.unwrap() == &self.proc_name {
-                            image_path = format!("apps/{}.app/{}", self.proc_name, self.proc_name);
+                            image_path =
+                                format!("{APPS_FOLDER}/{}.app/{}", self.proc_name, self.proc_name);
+                        } else if image.path.as_ref().unwrap().contains(&self.proc_name) {
+                            image_path = format!(
+                                "{APPS_FOLDER}/{}.app/Frameworks/{}.framework/{}",
+                                self.proc_name,
+                                image_name.unwrap(),
+                                image_name.unwrap()
+                            );
                         } else {
-                            image_path = format!("otas/{}", image_name.unwrap());
+                            image_path = format!("{}/{}", OTA_FOLDER, image_name.unwrap());
                         }
 
                         if filtered_dylibs.contains(image_name.unwrap().as_str()) {
@@ -342,8 +349,6 @@ impl CrashInfo {
                         }
 
                         println!("SYMBOL: {}", symbol_name);
-
-                        // TODO: Parse main executable
 
                         let r2 = r2_cache.get_or_create(image_path.as_str());
                         if symbol_name.contains(" + ") {
@@ -410,10 +415,104 @@ impl CrashInfo {
 
         res
     }
+
+    fn print_registers(&self) -> String {
+        let mut res: String = String::from("REGISTERS\n");
+        res.push_str(format!("{:-<20}\n\n", "").as_str());
+
+        if self.cpu_type == "X86-64" {
+        } else {
+            self.threads.iter().for_each(|thread| {
+                if thread.triggered.is_some() {
+                    thread
+                        .thread_state
+                        .as_ref()
+                        .unwrap()
+                        .x
+                        .iter()
+                        .enumerate()
+                        .for_each(|(i, r)| {
+                            res.push_str(format!("x{i}: {:#x}", r.value).as_str());
+                            if r.objc_selector.is_some() {
+                                res.push_str(
+                                    format!("{:>50}\n", r.objc_selector.as_ref().unwrap()).as_str(),
+                                );
+                            } else if r.symbol.is_some() {
+                                res.push_str(
+                                    format!("{:>50}\n", r.symbol.as_ref().unwrap()).as_str(),
+                                );
+                            } else {
+                                res.push_str("\n");
+                            }
+                        });
+
+                    res.push_str(
+                        format!(
+                            "pc: {:#x}\n",
+                            thread.thread_state.as_ref().unwrap().pc.value
+                        )
+                        .as_str(),
+                    );
+                    res.push_str(
+                        format!(
+                            "sp: {:#x}\n",
+                            thread.thread_state.as_ref().unwrap().sp.value
+                        )
+                        .as_str(),
+                    );
+                    res.push_str(
+                        format!(
+                            "fp: {:#x}\n",
+                            thread.thread_state.as_ref().unwrap().fp.value
+                        )
+                        .as_str(),
+                    );
+                    res.push_str(
+                        format!(
+                            "esr: {:#x}\n",
+                            thread.thread_state.as_ref().unwrap().esr.value
+                        )
+                        .as_str(),
+                    );
+                    res.push_str(
+                        format!(
+                            "lr: {:#x}\n",
+                            thread.thread_state.as_ref().unwrap().lr.value
+                        )
+                        .as_str(),
+                    );
+                    res.push_str(
+                        format!(
+                            "cpsr: {:#x}\n",
+                            thread.thread_state.as_ref().unwrap().cpsr.value
+                        )
+                        .as_str(),
+                    );
+                    res.push_str(
+                        format!(
+                            "far: {:#x}\n",
+                            thread.thread_state.as_ref().unwrap().far.value
+                        )
+                        .as_str(),
+                    );
+                    res.push_str(
+                        format!("flavor: {}\n", thread.thread_state.as_ref().unwrap().flavor)
+                            .as_str(),
+                    );
+                }
+            });
+        }
+
+        res
+    }
 }
 
 impl std::fmt::Display for CrashInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "{}", self.analyze_faulting_thread())
+        let mut res: std::fmt::Result;
+        res = writeln!(f, "{}", self.print_registers());
+        res = writeln!(f, "{}", self.analyze_faulting_thread());
+
+        return res;
     }
 }

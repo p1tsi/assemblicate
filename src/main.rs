@@ -8,7 +8,7 @@ use std::process;
 extern crate r2pipe;
 
 mod structs;
-use crate::structs::crash_log::CrashLog;
+use crate::structs::{constants::OUTPUT_FOLDER, crash_log::CrashLog};
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -34,7 +34,7 @@ fn main() -> std::io::Result<()> {
     let crash_log = CrashLog::new(ips_data);
 
     let filename = path.file_stem().unwrap().to_str().unwrap();
-    let mut file: File = File::create(format!("assemblicated/{filename}"))?;
+    let mut file: File = File::create(format!("{OUTPUT_FOLDER}/{filename}"))?;
     file.write_all(format!("{}", crash_log).as_bytes()).unwrap();
 
     Ok(())
