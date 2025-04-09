@@ -13,7 +13,7 @@ mod structs;
 
 use crash_log_analyzer::CrashLogAnalyzer;
 
-pub const OUTPUT_FOLDER: &str = "assemblicated";
+pub const OUTPUT_FOLDER: &str = "output";
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -23,7 +23,7 @@ fn main() -> std::io::Result<()> {
     }
 
     let ips_file: &String = &args[1];
-    let path = Path::new(ips_file);
+    let path: &Path = Path::new(ips_file);
     if !path.exists() {
         println!("{} does not exist.", ips_file);
 
@@ -41,13 +41,13 @@ fn main() -> std::io::Result<()> {
     let filename: &str = path.file_stem().unwrap().to_str().unwrap();
     let mut file: File = File::create(format!("{OUTPUT_FOLDER}/{filename}"))?;
 
-    let general_info = analyzer.parse_general_info();
+    let general_info: String = analyzer.parse_general_info();
     let _ = file.write_all(general_info.as_bytes());
-    let exception_info = analyzer.parse_exception_info();
+    let exception_info: String = analyzer.parse_exception_info();
     let _ = file.write_all(exception_info.as_bytes());
-    let registers = analyzer.parse_registers();
+    let registers: String = analyzer.parse_registers();
     let _ = file.write_all(registers.as_bytes());
-    let stacktrace = analyzer.analyze_faulting_thread();
+    let stacktrace: String = analyzer.analyze_faulting_thread();
     let _ = file.write_all(stacktrace.as_bytes()).unwrap();
 
     Ok(())

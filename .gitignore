@@ -1,6 +1,6 @@
+Cargo.lock
 /target
 /apps
 /ips
-/assemblicated
-Cargo.lock
-/otas
+/output
+/dylibs

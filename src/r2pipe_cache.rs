@@ -29,7 +29,7 @@ impl R2PipeCache {
         // Open R2Pipe only if it's not already in the cache
         self.map.entry(binary_name).or_insert_with(|| {
             let mut r2: R2Pipe = open_pipe!(Some(image_path)).expect("Failed to open r2pipe");
-            r2.cmd("aaa").unwrap();
+            r2.cmd("aa").unwrap();
 
             r2
         })

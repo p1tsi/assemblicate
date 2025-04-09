@@ -12,7 +12,31 @@ Everything with the help of Radare2.
 ## Usage
 
 1. Generate under the root of the project an `apps` folder and put the app inside;
-2. Generate under the root of the project an `otas` folder and put all system frameworks needed inside;
-3. Generate under the root of the project an `assemblicated` folder where you will find the output file;
+2. Generate under the root of the project an `dylibs` folder and put all system frameworks needed inside;
+3. Generate under the root of the project an `output` folder where you will find the output file;
+``` project-root/ 
+├── assemblicate/ 
+      ├── apps/ 
+      │ └── GlitchChat.app/
+      │ |    └── Frameworks/
+      │ |    |    └── libpng.framework/
+      │ |    |           └── libpng
+      │ |    └── GlitchChat
+      │ └── tccd
+      │ └── ...
+      ├── dylibs/
+      │    └── CoreFoundation
+      │    └── CFNetwork
+      │    └── libSystem.A.dylib
+      │    └── ...
+      ├── output/
+           └── GlitchChat-2025-04-07-190351
+```
+
+Then compile with `cargo`and launch:
 
 ```% assemblicate <ips_filepath>```
+
+## TODO
+• Add support for `X86-64` register set
+• ...

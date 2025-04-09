@@ -10,7 +10,7 @@ pub struct IncidentReport {
     pub build_version: String,
     pub platform: i32,
     share_with_app_devs: u8,
-    is_first_party: u8,
+    pub is_first_party: u8,
     bug_type: String,
     pub os_version: String,
     incident_id: String,

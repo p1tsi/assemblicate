@@ -10,60 +10,41 @@ use crate::structs::incident_report::IncidentReport;
 
 lazy_static! {
     pub static ref OBJC_METHOD: Regex = Regex::new(
-        r#"[-|+]\[(.*) (.*)][\._]*(block_invoke)*[\._]*([0-9]*)[\._]*(cold)*[\._]*([0-9]*)"#
+        r#"[-|+]\[(.*) (.*)][\._]*(block_invoke[\._]*[0-9]*)*[\._]*(cold[\._]*[0-9]*)*"#
     )
     .unwrap();
 }
 
-pub const OTA_FOLDER: &str = "otas";
+pub const OTA_FOLDER: &str = "dylibs";
 pub const APPS_FOLDER: &str = "apps";
 
 fn resolve_symbol_address(r2: &mut R2Pipe, symbol_name: &String) -> Option<String> {
     if symbol_name.contains("[") {
         if let Some(matches) = OBJC_METHOD.captures(symbol_name) {
-            let class_name = matches.get(1).unwrap().as_str();
-            let selector_name = matches.get(2).unwrap().as_str();
-            let block_invoke = matches.get(3);
-            let block_invoke_num = matches.get(4).unwrap().as_str();
-            let cold = matches.get(5);
-            let cold_num = matches.get(6).unwrap().as_str();
+            let class_name: &str = matches.get(1).unwrap().as_str();
+            let selector_name: &str = matches.get(2).unwrap().as_str();
+            let block_invoke: Option<regex::Match<'_>>  = matches.get(3);
+            let cold: Option<regex::Match<'_>> = matches.get(4);
 
-            let mut search_command = String::from("is");
-            search_command = format!("{}~{}", search_command, class_name);
-            search_command = format!("{}~{}]", search_command, selector_name);
-            search_command = match block_invoke {
-                Some(b) => format!("{}~{}", search_command, b.as_str()),
-                None => format!("{}~!block_invoke", search_command),
-            };
-            search_command = format!(
-                "{}~{}block_invoke",
-                search_command,
-                if block_invoke.is_some() { "" } else { "!" }
-            );
-            search_command = format!(
-                "{}~{}",
-                search_command,
-                if block_invoke_num.is_empty() {
-                    block_invoke_num
-                } else {
-                    ""
-                }
-            );
-            search_command = format!(
-                "{}~{}cold",
-                search_command,
-                if cold.is_some() { "" } else { "!" }
-            );
-            search_command = format!(
-                "{}~{}",
-                search_command,
-                if cold_num.is_empty() { cold_num } else { "" }
-            );
+            let mut search_command: String = String::from("is");
+            search_command.push_str(format!(" ~{}", class_name).as_str());
+            search_command.push_str(format!("~{}]", selector_name).as_str());
+            
+            match block_invoke {
+                Some(b) => search_command.push_str(format!("~{}", b.as_str()).as_str()),
+                None => search_command.push_str(format!("~!block_invoke").as_str())
+            }
+
+            match cold {
+                Some(c) => search_command.push_str(format!("~{}", c.as_str()).as_str()),
+                None => search_command.push_str(format!("~!cold").as_str())
+            }
+            
             search_command = format!("{}[2]", search_command);
 
-            if cold_num.is_empty() && block_invoke_num.is_empty() {
+            /*if cold_num.is_empty() && block_invoke_num.is_empty() {
                 search_command = format!("{}:0", search_command);
-            }
+            }*/
 
             //println!("{}", search_command);
 
@@ -76,21 +57,20 @@ fn resolve_symbol_address(r2: &mut R2Pipe, symbol_name: &String) -> Option<Strin
             None
         }
     } else {
-        let mut search_command = format!("is~{}", symbol_name);
-        search_command = format!(
-            "{}~{}block_invoke",
-            search_command,
+        let mut search_command: String = format!("is ~{}", symbol_name);
+        search_command.push_str(format!(
+            "~{}block_invoke",
             if symbol_name.contains("block_invoke") {
                 ""
             } else {
                 "!"
             }
-        );
-        search_command = format!("{}[2]:0", search_command); // ~FUNC~GLOBAL
+        ).as_str());
+        search_command.push_str("[2]:0"); // ~FUNC~GLOBAL
 
-        println!("{}", search_command);
+        //println!("{}", search_command);
 
-        let symbol_address = r2.cmd(&search_command).unwrap();
+        let symbol_address: String = r2.cmd(&search_command).unwrap();
 
         Some(symbol_address)
     }
@@ -112,7 +92,7 @@ impl<'a> CrashLogAnalyzer<'a> {
                 .expect("Failed to parse general info"),
             crash_info: serde_json::from_str(crash_details).expect("Failed to parse crash details"),
             r2_cache: R2PipeCache::new(),
-            filtered_dylibs: HashSet::from(["UIKitCore", "libdispatch.dylib", "CoreFoundation"]),
+            filtered_dylibs: HashSet::from(["UIKitCore", "libdispatch.dylib", "CoreFoundation", "CFNetwork"]),
         }
     }
 
@@ -261,23 +241,30 @@ impl<'a> CrashLogAnalyzer<'a> {
         // Check if is main exe/main app
         println!("IMAGE: {}", image_name.unwrap());
         if image_name.unwrap() == &self.crash_info.proc_name {
-            image_path = format!(
-                "{APPS_FOLDER}/{}.app/{}",
-                self.crash_info.proc_name, self.crash_info.proc_name
-            );
-        } else if image
-            .path
+            if self.general_info.is_first_party == 1 {
+                image_path = format!(
+                    "{APPS_FOLDER}/{}",
+                    self.crash_info.proc_name
+                );
+            }
+            else{
+                image_path = format!(
+                    "{APPS_FOLDER}/{}.app/{}",
+                    self.crash_info.proc_name, self.crash_info.proc_name
+                );
+            }
+        } else if image.path
             .as_ref()
             .unwrap()
-            .contains(&self.crash_info.proc_name)
-        {
+            .contains(&self.crash_info.proc_name){
             image_path = format!(
                 "{APPS_FOLDER}/{}.app/Frameworks/{}.framework/{}",
                 self.crash_info.proc_name,
                 image_name.unwrap(),
                 image_name.unwrap()
             );
-        } else {
+        }        
+        else {
             image_path = format!("{}/{}", OTA_FOLDER, image_name.unwrap());
         }
 
@@ -338,7 +325,8 @@ impl<'a> CrashLogAnalyzer<'a> {
             }
         }
 
-        res.push_str(format!("{:>70}\n", "-".repeat(60)).as_str());
+        //res.push_str(format!("{:>70}\n", "-".repeat(60)).as_str());
+        res.push_str("\n");
 
         res
     }
