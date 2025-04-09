@@ -27,7 +27,7 @@ Everything with the help of Radare2.
       ├── dylibs/
       │    └── CoreFoundation
       │    └── CFNetwork
-      │    └── libSystem.A.dylib
+      │    └── libSystem.B.dylib
       │    └── ...
       ├── output/
            └── GlitchChat-2025-04-07-190351
