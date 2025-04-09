@@ -40,4 +40,6 @@ Then compile with `cargo`and launch:
 ## TODO
 • Add support for `X86-64` register set
 
+• Add concurrency to speed up
+
 • ...
