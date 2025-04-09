@@ -19,7 +19,7 @@ impl R2PipeCache {
     // If it doesn't exist in the cache, it's created and initialized.
     pub fn get_or_create(&mut self, image_path: &str) -> &mut R2Pipe {
         // Extract binary name from full path
-        let binary_name = Path::new(image_path)
+        let binary_name: String = Path::new(image_path)
             .file_name()
             .unwrap()
             .to_str()
@@ -27,9 +27,9 @@ impl R2PipeCache {
             .to_string();
 
         // Open R2Pipe only if it's not already in the cache
-        self.map.entry(binary_name.clone()).or_insert_with(|| {
-            let mut r2 = open_pipe!(Some(image_path)).expect("Failed to open r2pipe");
-            r2.cmd("aa").unwrap();
+        self.map.entry(binary_name).or_insert_with(|| {
+            let mut r2: R2Pipe = open_pipe!(Some(image_path)).expect("Failed to open r2pipe");
+            r2.cmd("aaa").unwrap();
 
             r2
         })

@@ -7,8 +7,13 @@ use std::process;
 #[macro_use]
 extern crate r2pipe;
 
+mod crash_log_analyzer;
+mod r2pipe_cache;
 mod structs;
-use crate::structs::{constants::OUTPUT_FOLDER, crash_log::CrashLog};
+
+use crash_log_analyzer::CrashLogAnalyzer;
+
+pub const OUTPUT_FOLDER: &str = "assemblicated";
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -31,11 +36,19 @@ fn main() -> std::io::Result<()> {
         return Ok(());
     }
 
-    let crash_log = CrashLog::new(ips_data);
+    let mut analyzer: CrashLogAnalyzer = CrashLogAnalyzer::new(ips_data);
 
-    let filename = path.file_stem().unwrap().to_str().unwrap();
+    let filename: &str = path.file_stem().unwrap().to_str().unwrap();
     let mut file: File = File::create(format!("{OUTPUT_FOLDER}/{filename}"))?;
-    file.write_all(format!("{}", crash_log).as_bytes()).unwrap();
+
+    let general_info = analyzer.parse_general_info();
+    let _ = file.write_all(general_info.as_bytes());
+    let exception_info = analyzer.parse_exception_info();
+    let _ = file.write_all(exception_info.as_bytes());
+    let registers = analyzer.parse_registers();
+    let _ = file.write_all(registers.as_bytes());
+    let stacktrace = analyzer.analyze_faulting_thread();
+    let _ = file.write_all(stacktrace.as_bytes()).unwrap();
 
     Ok(())
 }
